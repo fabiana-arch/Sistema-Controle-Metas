@@ -1,15 +1,17 @@
-// src/config/database.js
-
 const { Pool } = require('pg');
 
-// Configurações do banco de dados PostgreSQL
 const pool = new Pool({
-    user: 'your_user',
-    host: 'localhost',
-    database: 'your_database',
-    password: 'your_password',
-    port: 5432,
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
-// Exporta o pool para ser utilizado em outros módulos
+pool.on('connect', () => {
+    console.log('Conectado ao banco de dados PostgreSQL');
+});
+
+pool.on('error', (err) => {
+    console.error('Erro inesperado no pool do banco de dados:', err);
+    process.exit(-1);
+});
+
 module.exports = pool;

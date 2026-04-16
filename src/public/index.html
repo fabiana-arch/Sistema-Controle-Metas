@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Controle de Metas</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- AUTH SCREENS -->
+<div id="auth-container" class="auth-container">
+    <div class="auth-box">
+        <div class="auth-logo">
+            <div class="logo-icon">🏢</div>
+            <h1>Controle de Metas</h1>
+            <p>Sistema de Gestão de Condomínios</p>
+        </div>
+
+        <!-- Login Tab -->
+        <div class="auth-tabs">
+            <button class="tab-btn active" onclick="mostrarTab('login')">Entrar</button>
+            <button class="tab-btn" onclick="mostrarTab('registrar')">Criar Conta</button>
+        </div>
+
+        <div id="tab-login" class="tab-content active">
+            <form id="form-login" onsubmit="fazerLogin(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="seu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <input type="password" id="login-senha" placeholder="Sua senha" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="btn-login">
+                    <span>Entrar no Sistema</span>
+                </button>
+            </form>
+        </div>
+
+        <div id="tab-registrar" class="tab-content">
+            <form id="form-registrar" onsubmit="fazerRegistro(event)">
+                <div class="form-group">
+                    <label>Nome completo</label>
+                    <input type="text" id="reg-nome" placeholder="Seu nome completo" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="reg-email" placeholder="seu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <input type="password" id="reg-senha" placeholder="Mínimo 6 caracteres" required>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de conta</label>
+                    <select id="reg-role">
+                        <option value="user">Usuário</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="btn-registrar">
+                    <span>Criar Conta</span>
+                </button>
+            </form>
+        </div>
+
+        <div id="auth-msg" class="auth-msg hidden"></div>
+    </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-container" class="app-container hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">🏢</div>
+            <div class="sidebar-title">
+                <strong>Controle de Metas</strong>
+                <span id="user-name-sidebar"></span>
+            </div>
+            <button class="sidebar-toggle-btn" onclick="toggleSidebar()">☰</button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" onclick="mostrarPagina('dashboard', this)">
+                <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" onclick="mostrarPagina('metas', this)">
+                <span class="nav-icon">🎯</span><span class="nav-label">Metas</span>
+            </a>
+            <a href="#" class="nav-item" onclick="mostrarPagina('condominios', this)">
+                <span class="nav-icon">🏘️</span><span class="nav-label">Condomínios</span>
+            </a>
+            <a href="#" class="nav-item admin-only hidden" onclick="mostrarPagina('usuarios', this)">
+                <span class="nav-icon">👥</span><span class="nav-label">Usuários</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="online-indicator">
+                <span class="dot" id="conn-dot"></span>
+                <span id="conn-status">Conectando...</span>
+            </div>
+            <button class="btn btn-ghost" onclick="sair()">Sair</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+
+        <!-- Toast notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page active">
+            <div class="page-header">
+                <h2>Dashboard</h2>
+                <p>Visão geral das metas</p>
+            </div>
+
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total de Metas</div>
+                    </div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-concluidas">0</div>
+                        <div class="stat-label">Concluídas</div>
+                    </div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-andamento">0</div>
+                        <div class="stat-label">Em Andamento</div>
+                    </div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="stat-pendentes">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-row">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Progresso Financeiro Geral</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress-info">
+                            <span id="dash-valor-atual">R$ 0,00</span>
+                            <span>de</span>
+                            <span id="dash-valor-meta">R$ 0,00</span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar" id="dash-progress-bar"></div>
+                        </div>
+                        <div class="progress-percent" id="dash-percentual">0%</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Últimas Atualizações</h3>
+                    </div>
+                    <div class="card-body" id="feed-atualizacoes">
+                        <p class="empty-state">Nenhuma atualização recente</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metas Page -->
+        <div id="page-metas" class="page hidden">
+            <div class="page-header">
+                <div>
+                    <h2>Metas</h2>
+                    <p>Gerencie todas as metas do sistema</p>
+                </div>
+                <div class="header-actions">
+                    <select id="filtro-condominio" onchange="filtrarMetas()" class="select-sm">
+                        <option value="">Todos os condomínios</option>
+                    </select>
+                    <select id="filtro-status" onchange="filtrarMetas()" class="select-sm">
+                        <option value="">Todos os status</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="em_andamento">Em Andamento</option>
+                        <option value="concluida">Concluída</option>
+                        <option value="cancelada">Cancelada</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="abrirModalMeta()">+ Nova Meta</button>
+                </div>
+            </div>
+            <div id="lista-metas" class="metas-grid"></div>
+        </div>
+
+        <!-- Condomínios Page -->
+        <div id="page-condominios" class="page hidden">
+            <div class="page-header">
+                <div>
+                    <h2>Condomínios</h2>
+                    <p>Gerencie os condomínios cadastrados</p>
+                </div>
+                <button class="btn btn-primary admin-only hidden" onclick="abrirModalCondominio()">+ Novo Condomínio</button>
+            </div>
+            <div id="lista-condominios" class="condominios-list"></div>
+        </div>
+
+        <!-- Usuários Page -->
+        <div id="page-usuarios" class="page hidden">
+            <div class="page-header">
+                <h2>Usuários</h2>
+                <p>Gerencie os usuários do sistema</p>
+            </div>
+            <div id="lista-usuarios" class="table-container"></div>
+        </div>
+
+    </main>
+</div>
+
+<!-- MODAIS -->
+
+<!-- Modal Meta -->
+<div id="modal-meta" class="modal hidden">
+    <div class="modal-overlay" onclick="fecharModal('modal-meta')"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modal-meta-titulo">Nova Meta</h3>
+            <button class="modal-close" onclick="fecharModal('modal-meta')">✕</button>
+        </div>
+        <form id="form-meta" onsubmit="salvarMeta(event)">
+            <input type="hidden" id="meta-id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Título *</label>
+                    <input type="text" id="meta-titulo" required>
+                </div>
+                <div class="form-group">
+                    <label>Condomínio</label>
+                    <select id="meta-condominio"></select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Descrição</label>
+                <textarea id="meta-descricao" rows="3"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Valor da Meta (R$)</label>
+                    <input type="number" id="meta-valor-meta" step="0.01" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Valor Atual (R$)</label>
+                    <input type="number" id="meta-valor-atual" step="0.01" min="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="meta-status">
+                        <option value="pendente">Pendente</option>
+                        <option value="em_andamento">Em Andamento</option>
+                        <option value="concluida">Concluída</option>
+                        <option value="cancelada">Cancelada</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Responsável</label>
+                    <select id="meta-responsavel"></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Data Início</label>
+                    <input type="date" id="meta-data-inicio">
+                </div>
+                <div class="form-group">
+                    <label>Data Fim</label>
+                    <input type="date" id="meta-data-fim">
+                </div>
+            </div>
+            <div class="form-group" id="campo-observacao" style="display:none">
+                <label>Observação sobre a atualização</label>
+                <textarea id="meta-observacao" rows="2"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="fecharModal('modal-meta')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Meta</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Condomínio -->
+<div id="modal-condominio" class="modal hidden">
+    <div class="modal-overlay" onclick="fecharModal('modal-condominio')"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modal-cond-titulo">Novo Condomínio</h3>
+            <button class="modal-close" onclick="fecharModal('modal-condominio')">✕</button>
+        </div>
+        <form id="form-condominio" onsubmit="salvarCondominio(event)">
+            <input type="hidden" id="cond-id">
+            <div class="form-group">
+                <label>Nome *</label>
+                <input type="text" id="cond-nome" required>
+            </div>
+            <div class="form-group">
+                <label>Endereço</label>
+                <textarea id="cond-endereco" rows="2"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="fecharModal('modal-condominio')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Detalhes Meta -->
+<div id="modal-detalhe-meta" class="modal hidden">
+    <div class="modal-overlay" onclick="fecharModal('modal-detalhe-meta')"></div>
+    <div class="modal-box modal-lg">
+        <div class="modal-header">
+            <h3 id="detalhe-titulo"></h3>
+            <button class="modal-close" onclick="fecharModal('modal-detalhe-meta')">✕</button>
+        </div>
+        <div id="detalhe-body" class="modal-body"></div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
