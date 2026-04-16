@@ -1,0 +1,29 @@
+# Blueprint Render: app + PostgreSQL gratuito (dados não somem ao redeploy).
+# No painel: New → Blueprint → conecte o GitHub e escolha este repositório.
+#
+# JWT_SECRET é gerado automaticamente. O Render preenche DATABASE_URL sozinho.
+
+databases:
+  - name: metas-db
+    plan: free
+    databaseName: metas
+    user: metas
+
+services:
+  - type: web
+    name: sistema-controle-metas
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: metas-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true

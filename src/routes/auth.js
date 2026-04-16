@@ -1,12 +1,12 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { getDb } = require('../db');
+const { getStore } = require('../store');
 const { signToken } = require('../auth');
 
 function createAuthRouter() {
   const router = express.Router();
 
-  router.post('/register', (req, res) => {
+  router.post('/register', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const name = String(req.body?.name || '').trim();
@@ -18,23 +18,27 @@ function createAuthRouter() {
       return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres' });
     }
 
-    const db = getDb();
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
-      return res.status(409).json({ error: 'E-mail já cadastrado' });
+    try {
+      const store = getStore();
+      const existing = await store.findUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: 'E-mail já cadastrado' });
+      }
+
+      const passwordHash = bcrypt.hashSync(password, 10);
+      const user = await store.insertUser(email, passwordHash, name);
+      const token = signToken({ sub: user.id, email: user.email, name: user.name });
+      return res.status(201).json({ token, user });
+    } catch (err) {
+      if (err && err.code === '23505') {
+        return res.status(409).json({ error: 'E-mail já cadastrado' });
+      }
+      console.error(err);
+      return res.status(500).json({ error: 'Erro ao criar conta' });
     }
-
-    const passwordHash = bcrypt.hashSync(password, 10);
-    const info = db
-      .prepare('INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)')
-      .run(email, passwordHash, name);
-
-    const user = { id: info.lastInsertRowid, email, name };
-    const token = signToken({ sub: user.id, email: user.email, name: user.name });
-    return res.status(201).json({ token, user });
   });
 
-  router.post('/login', (req, res) => {
+  router.post('/login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
 
@@ -42,15 +46,20 @@ function createAuthRouter() {
       return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
     }
 
-    const db = getDb();
-    const row = db.prepare('SELECT id, email, name, password_hash FROM users WHERE email = ?').get(email);
-    if (!row || !bcrypt.compareSync(password, row.password_hash)) {
-      return res.status(401).json({ error: 'E-mail ou senha incorretos' });
-    }
+    try {
+      const store = getStore();
+      const row = await store.findUserWithHashByEmail(email);
+      if (!row || !bcrypt.compareSync(password, row.password_hash)) {
+        return res.status(401).json({ error: 'E-mail ou senha incorretos' });
+      }
 
-    const user = { id: row.id, email: row.email, name: row.name };
-    const token = signToken({ sub: user.id, email: user.email, name: user.name });
-    return res.json({ token, user });
+      const user = { id: row.id, email: row.email, name: row.name };
+      const token = signToken({ sub: user.id, email: user.email, name: user.name });
+      return res.json({ token, user });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Erro ao entrar' });
+    }
   });
 
   return router;

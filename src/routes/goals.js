@@ -1,18 +1,10 @@
 const express = require('express');
-const { getDb } = require('../db');
+const { getStore } = require('../store');
 const { authMiddleware } = require('../auth');
 
-function broadcastGoals(io) {
-  const db = getDb();
-  const goals = db
-    .prepare(
-      `SELECT g.id, g.title, g.target, g.current, g.created_at, g.updated_at,
-              u.name AS created_by_name
-       FROM goals g
-       JOIN users u ON u.id = g.created_by
-       ORDER BY g.updated_at DESC`
-    )
-    .all();
+async function broadcastGoals(io) {
+  const store = getStore();
+  const goals = await store.listGoals();
   io.to('condominio').emit('goals:sync', { goals });
 }
 
@@ -20,21 +12,18 @@ function createGoalsRouter() {
   const router = express.Router();
   router.use(authMiddleware);
 
-  router.get('/', (req, res) => {
-    const db = getDb();
-    const goals = db
-      .prepare(
-        `SELECT g.id, g.title, g.target, g.current, g.created_at, g.updated_at,
-                u.name AS created_by_name
-         FROM goals g
-         JOIN users u ON u.id = g.created_by
-         ORDER BY g.updated_at DESC`
-      )
-      .all();
-    res.json({ goals });
+  router.get('/', async (req, res) => {
+    try {
+      const store = getStore();
+      const goals = await store.listGoals();
+      res.json({ goals });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Erro ao listar metas' });
+    }
   });
 
-  router.post('/', (req, res) => {
+  router.post('/', async (req, res) => {
     const title = String(req.body?.title || '').trim();
     const target = Number(req.body?.target);
     const current = req.body?.current != null ? Number(req.body.current) : 0;
@@ -49,117 +38,102 @@ function createGoalsRouter() {
       return res.status(400).json({ error: 'Valor atual inválido' });
     }
 
-    const db = getDb();
-    const info = db
-      .prepare(
-        `INSERT INTO goals (title, target, current, created_by)
-         VALUES (?, ?, ?, ?)`
-      )
-      .run(title, target, current, req.user.id);
+    try {
+      const store = getStore();
+      const row = await store.insertGoal(title, target, current, req.user.id);
+      const goal = row;
 
-    const goal = db
-      .prepare(
-        `SELECT g.id, g.title, g.target, g.current, g.created_at, g.updated_at,
-                u.name AS created_by_name
-         FROM goals g
-         JOIN users u ON u.id = g.created_by
-         WHERE g.id = ?`
-      )
-      .get(info.lastInsertRowid);
+      const io = req.app.get('io');
+      if (io) {
+        await broadcastGoals(io);
+      }
 
-    const io = req.app.get('io');
-    if (io) {
-      broadcastGoals(io);
+      res.status(201).json({ goal });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Erro ao criar meta' });
     }
-
-    res.status(201).json({ goal });
   });
 
-  router.patch('/:id', (req, res) => {
+  router.patch('/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const db = getDb();
-    const existing = db.prepare('SELECT id FROM goals WHERE id = ?').get(id);
-    if (!existing) {
+    const store = getStore();
+    const exists = await store.goalExists(id);
+    if (!exists) {
       return res.status(404).json({ error: 'Meta não encontrada' });
     }
 
-    const updates = [];
-    const params = [];
-
+    let title;
+    let target;
+    let current;
     if (req.body.title != null) {
-      const title = String(req.body.title).trim();
+      title = String(req.body.title).trim();
       if (!title) {
         return res.status(400).json({ error: 'Título inválido' });
       }
-      updates.push('title = ?');
-      params.push(title);
     }
     if (req.body.target != null) {
-      const target = Number(req.body.target);
+      target = Number(req.body.target);
       if (Number.isNaN(target) || target < 0) {
         return res.status(400).json({ error: 'Meta (valor alvo) inválida' });
       }
-      updates.push('target = ?');
-      params.push(target);
     }
     if (req.body.current != null) {
-      const current = Number(req.body.current);
+      current = Number(req.body.current);
       if (Number.isNaN(current) || current < 0) {
         return res.status(400).json({ error: 'Valor atual inválido' });
       }
-      updates.push('current = ?');
-      params.push(current);
     }
 
-    if (updates.length === 0) {
+    if (title == null && target == null && current == null) {
       return res.status(400).json({ error: 'Nada para atualizar' });
     }
 
-    updates.push("updated_at = datetime('now')");
-    params.push(id);
+    try {
+      const goal = await store.updateGoal(id, title, target, current);
+      if (!goal) {
+        return res.status(400).json({ error: 'Nada para atualizar' });
+      }
 
-    db.prepare(`UPDATE goals SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+      const io = req.app.get('io');
+      if (io) {
+        await broadcastGoals(io);
+      }
 
-    const goal = db
-      .prepare(
-        `SELECT g.id, g.title, g.target, g.current, g.created_at, g.updated_at,
-                u.name AS created_by_name
-         FROM goals g
-         JOIN users u ON u.id = g.created_by
-         WHERE g.id = ?`
-      )
-      .get(id);
-
-    const io = req.app.get('io');
-    if (io) {
-      broadcastGoals(io);
+      res.json({ goal });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Erro ao atualizar meta' });
     }
-
-    res.json({ goal });
   });
 
-  router.delete('/:id', (req, res) => {
+  router.delete('/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const db = getDb();
-    const info = db.prepare('DELETE FROM goals WHERE id = ?').run(id);
-    if (info.changes === 0) {
-      return res.status(404).json({ error: 'Meta não encontrada' });
-    }
+    try {
+      const store = getStore();
+      const deleted = await store.deleteGoal(id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Meta não encontrada' });
+      }
 
-    const io = req.app.get('io');
-    if (io) {
-      broadcastGoals(io);
-    }
+      const io = req.app.get('io');
+      if (io) {
+        await broadcastGoals(io);
+      }
 
-    res.status(204).end();
+      res.status(204).end();
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Erro ao excluir meta' });
+    }
   });
 
   return router;
