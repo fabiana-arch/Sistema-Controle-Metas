@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Controle de Metas — Online</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222c;
+      --border: #2d3a4a;
+      --text: #e8eef4;
+      --muted: #8fa3b6;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --radius: 10px;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      background: radial-gradient(1200px 600px at 20% -10%, #1e3a5f 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #312e81 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: rgba(26, 34, 44, 0.85);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .badge {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 {
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #121920;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    input:focus {
+      outline: 2px solid rgba(59, 130, 246, 0.45);
+      outline-offset: 0;
+      border-color: var(--accent);
+    }
+    .row {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    @media (min-width: 520px) {
+      .row.cols-2 { grid-template-columns: 1fr 1fr; }
+    }
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fecaca;
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.28); }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .msg {
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      display: none;
+    }
+    .msg.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.12);
+      color: #fecaca;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .msg.ok {
+      display: block;
+      background: rgba(34, 197, 94, 0.12);
+      color: #bbf7d0;
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .hidden { display: none !important; }
+    .user-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .user-name { font-size: 0.9rem; color: var(--muted); }
+    .user-name strong { color: var(--text); }
+    .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+      animation: pulse 2s infinite;
+    }
+    .live.off .live-dot { background: var(--muted); box-shadow: none; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .goal-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .goal {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      background: #121920;
+    }
+    .goal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+    .goal-title { font-weight: 600; font-size: 1rem; }
+    .goal-meta { font-size: 0.8rem; color: var(--muted); }
+    .bar-wrap {
+      height: 8px;
+      border-radius: 999px;
+      background: #0c1016;
+      overflow: hidden;
+      margin: 0.5rem 0 0.75rem;
+    }
+    .bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), #60a5fa);
+      transition: width 0.25s ease;
+    }
+    .goal-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      align-items: end;
+    }
+    .goal-fields label { margin: 0; }
+    .goal-fields input { padding: 0.45rem 0.55rem; font-size: 0.85rem; }
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 2rem 1rem;
+      font-size: 0.95rem;
+    }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .tabs button {
+      flex: 1;
+      background: #121920;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .tabs button.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.12);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Controle de Metas</h1>
+      <div class="badge">Mesmo painel para todos os usuários · atualização em tempo real</div>
+    </div>
+    <div id="header-right"></div>
+  </header>
+  <main>
+    <section id="auth-section" class="card">
+      <div class="tabs">
+        <button type="button" id="tab-login" class="active">Entrar</button>
+        <button type="button" id="tab-register">Criar conta</button>
+      </div>
+      <form id="form-login">
+        <div class="row">
+          <div>
+            <label for="login-email">E-mail</label>
+            <input id="login-email" type="email" autocomplete="username" required />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="login-password">Senha</label>
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="btn-login">Entrar</button>
+        </div>
+      </form>
+      <form id="form-register" class="hidden">
+        <div class="row">
+          <div>
+            <label for="reg-name">Nome</label>
+            <input id="reg-name" type="text" autocomplete="name" required />
+          </div>
+        </div>
+        <div class="row cols-2">
+          <div>
+            <label for="reg-email">E-mail</label>
+            <input id="reg-email" type="email" autocomplete="username" required />
+          </div>
+          <div>
+            <label for="reg-password">Senha (mín. 6)</label>
+            <input id="reg-password" type="password" autocomplete="new-password" required minlength="6" />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="btn-register">Criar conta</button>
+        </div>
+      </form>
+      <div id="auth-msg" class="msg"></div>
+    </section>
+
+    <section id="app-section" class="hidden">
+      <div class="card">
+        <h2>Nova meta</h2>
+        <div class="row cols-2">
+          <div>
+            <label for="new-title">Título</label>
+            <input id="new-title" type="text" placeholder="Ex.: Fundo de reserva 2026" />
+          </div>
+          <div>
+            <label for="new-target">Valor alvo</label>
+            <input id="new-target" type="number" min="0" step="0.01" placeholder="10000" />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn-primary" id="btn-add-goal">Adicionar meta</button>
+        </div>
+        <div id="new-msg" class="msg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Metas compartilhadas</h2>
+        <div id="goals-list" class="goal-list"></div>
+        <div id="goals-empty" class="empty hidden">Nenhuma meta ainda. Crie a primeira acima.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API = '';
+
+    let token = localStorage.getItem('token');
+    let user = null;
+    try {
+      user = JSON.parse(localStorage.getItem('user') || 'null');
+    } catch { user = null; }
+
+    let socket = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function setAuthMessage(text, type) {
+      const el = $('auth-msg');
+      el.textContent = text || '';
+      el.className = 'msg' + (type ? ' ' + type : '');
+    }
+
+    function setNewMessage(text, type) {
+      const el = $('new-msg');
+      el.textContent = text || '';
+      el.className = 'msg' + (type ? ' ' + type : '');
+    }
+
+    function authHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token,
+      };
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API + path, {
+        ...opts,
+        headers: { ...authHeaders(), ...(opts.headers || {}) },
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { error: text || 'Resposta inválida' };
+      }
+      if (!res.ok) {
+        const err = new Error(data?.error || 'Erro na requisição');
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    function renderHeader() {
+      const hr = $('header-right');
+      if (!token || !user) {
+        hr.innerHTML = '';
+        return;
+      }
+      hr.innerHTML = `
+        <div class="user-bar">
+          <span class="live" id="live-ind"><span class="live-dot"></span> Tempo real</span>
+          <span class="user-name">Olá, <strong>${escapeHtml(user.name)}</strong></span>
+          <button type="button" class="btn-ghost" id="btn-logout">Sair</button>
+        </div>
+      `;
+      $('btn-logout').onclick = logout;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function pct(current, target) {
+      if (!target || target <= 0) return 0;
+      return Math.min(100, Math.round((current / target) * 1000) / 10);
+    }
+
+    function renderGoals(goals) {
+      const list = $('goals-list');
+      const empty = $('goals-empty');
+      list.innerHTML = '';
+      if (!goals || goals.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      goals.forEach((g) => {
+        const p = pct(Number(g.current), Number(g.target));
+        const div = document.createElement('div');
+        div.className = 'goal';
+        div.dataset.id = g.id;
+        div.innerHTML = `
+          <div class="goal-head">
+            <div>
+              <div class="goal-title">${escapeHtml(g.title)}</div>
+              <div class="goal-meta">Criado por ${escapeHtml(g.created_by_name || '')}</div>
+            </div>
+            <button type="button" class="btn-danger btn-del" data-id="${g.id}">Excluir</button>
+          </div>
+          <div class="bar-wrap"><div class="bar" style="width:${p}%"></div></div>
+          <div class="goal-fields">
+            <div>
+              <label>Atual</label>
+              <input type="number" min="0" step="0.01" class="inp-current" value="${Number(g.current)}" />
+            </div>
+            <div>
+              <label>Alvo</label>
+              <input type="number" min="0" step="0.01" class="inp-target" value="${Number(g.target)}" />
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn-primary btn-save">Salvar alterações</button>
+          </div>
+        `;
+        const btnSave = div.querySelector('.btn-save');
+        const btnDel = div.querySelector('.btn-del');
+        btnSave.onclick = () => saveGoal(g.id, div);
+        btnDel.onclick = () => deleteGoal(g.id);
+        list.appendChild(div);
+      });
+    }
+
+    async function loadGoals() {
+      const data = await api('/api/goals');
+      renderGoals(data.goals || []);
+    }
+
+    async function saveGoal(id, rowEl) {
+      const current = Number(rowEl.querySelector('.inp-current').value);
+      const target = Number(rowEl.querySelector('.inp-target').value);
+      try {
+        await api('/api/goals/' + id, {
+          method: 'PATCH',
+          body: JSON.stringify({ current, target }),
+        });
+        setNewMessage('Meta atualizada.', 'ok');
+        setTimeout(() => setNewMessage('', ''), 2000);
+      } catch (e) {
+        setNewMessage(e.message, 'error');
+      }
+    }
+
+    async function deleteGoal(id) {
+      if (!confirm('Excluir esta meta para todos?')) return;
+      try {
+        await api('/api/goals/' + id, { method: 'DELETE' });
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function connectSocket() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      socket = io({ auth: { token }, transports: ['websocket', 'polling'] });
+      socket.on('connect', () => {
+        const ind = $('live-ind');
+        if (ind) ind.classList.remove('off');
+      });
+      socket.on('disconnect', () => {
+        const ind = $('live-ind');
+        if (ind) ind.classList.add('off');
+      });
+      socket.on('connect_error', () => {
+        const ind = $('live-ind');
+        if (ind) ind.classList.add('off');
+      });
+      socket.on('goals:sync', (payload) => {
+        renderGoals(payload.goals || []);
+      });
+    }
+
+    function showApp() {
+      $('auth-section').classList.add('hidden');
+      $('app-section').classList.remove('hidden');
+      renderHeader();
+      connectSocket();
+    }
+
+    function showAuth() {
+      $('app-section').classList.add('hidden');
+      $('auth-section').classList.remove('hidden');
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      renderHeader();
+    }
+
+    function persistSession(t, u) {
+      token = t;
+      user = u;
+      if (t) localStorage.setItem('token', t);
+      else localStorage.removeItem('token');
+      if (u) localStorage.setItem('user', JSON.stringify(u));
+      else localStorage.removeItem('user');
+    }
+
+    function logout() {
+      persistSession(null, null);
+      showAuth();
+    }
+
+    async function tryResume() {
+      if (!token) {
+        showAuth();
+        return;
+      }
+      try {
+        await loadGoals();
+        showApp();
+      } catch {
+        persistSession(null, null);
+        showAuth();
+      }
+    }
+
+    $('tab-login').onclick = () => {
+      $('tab-login').classList.add('active');
+      $('tab-register').classList.remove('active');
+      $('form-login').classList.remove('hidden');
+      $('form-register').classList.add('hidden');
+      setAuthMessage('', '');
+    };
+    $('tab-register').onclick = () => {
+      $('tab-register').classList.add('active');
+      $('tab-login').classList.remove('active');
+      $('form-register').classList.remove('hidden');
+      $('form-login').classList.add('hidden');
+      setAuthMessage('', '');
+    };
+
+    $('form-login').onsubmit = async (ev) => {
+      ev.preventDefault();
+      setAuthMessage('', '');
+      const email = $('login-email').value.trim();
+      const password = $('login-password').value;
+      $('btn-login').disabled = true;
+      try {
+        const res = await fetch(API + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha no login');
+        persistSession(data.token, data.user);
+        await loadGoals();
+        showApp();
+      } catch (e) {
+        setAuthMessage(e.message, 'error');
+      } finally {
+        $('btn-login').disabled = false;
+      }
+    };
+
+    $('form-register').onsubmit = async (ev) => {
+      ev.preventDefault();
+      setAuthMessage('', '');
+      const name = $('reg-name').value.trim();
+      const email = $('reg-email').value.trim();
+      const password = $('reg-password').value;
+      $('btn-register').disabled = true;
+      try {
+        const res = await fetch(API + '/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha no cadastro');
+        persistSession(data.token, data.user);
+        await loadGoals();
+        showApp();
+      } catch (e) {
+        setAuthMessage(e.message, 'error');
+      } finally {
+        $('btn-register').disabled = false;
+      }
+    };
+
+    $('btn-add-goal').onclick = async () => {
+      setNewMessage('', '');
+      const title = $('new-title').value.trim();
+      const target = Number($('new-target').value);
+      if (!title) {
+        setNewMessage('Informe o título da meta.', 'error');
+        return;
+      }
+      if (Number.isNaN(target) || target < 0) {
+        setNewMessage('Informe um valor alvo válido.', 'error');
+        return;
+      }
+      $('btn-add-goal').disabled = true;
+      try {
+        await api('/api/goals', {
+          method: 'POST',
+          body: JSON.stringify({ title, target, current: 0 }),
+        });
+        $('new-title').value = '';
+        $('new-target').value = '';
+        setNewMessage('Meta criada. Todos veem na hora.', 'ok');
+        setTimeout(() => setNewMessage('', ''), 2500);
+      } catch (e) {
+        setNewMessage(e.message, 'error');
+      } finally {
+        $('btn-add-goal').disabled = false;
+      }
+    };
+
+    renderHeader();
+    tryResume();
+  </script>
+</body>
+</html>
