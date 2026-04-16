@@ -1,15 +1,16 @@
-// src/config/database.js
+const { Pool } = require("pg");
 
-const { Pool } = require('pg');
+const connectionString = process.env.DATABASE_URL;
 
-// Configurações do banco de dados PostgreSQL
+if (!connectionString) {
+  throw new Error("DATABASE_URL não definida no ambiente.");
+}
+
+const useSsl = process.env.DATABASE_SSL === "true";
+
 const pool = new Pool({
-    user: 'your_user',
-    host: 'localhost',
-    database: 'your_database',
-    password: 'your_password',
-    port: 5432,
+  connectionString,
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
 });
 
-// Exporta o pool para ser utilizado em outros módulos
 module.exports = pool;

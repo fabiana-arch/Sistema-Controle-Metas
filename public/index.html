@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema de Metas Online</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Arial, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background: #111;
+        color: #f3f3f3;
+      }
+
+      .wrapper {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+
+      .card {
+        background: #1f1f1f;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        border: 1px solid #3b3b3b;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 4px 0 10px;
+        box-sizing: border-box;
+        font-size: 14px;
+      }
+
+      button {
+        background: #2f73ff;
+        border: none;
+        color: white;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: #333;
+      }
+
+      .row-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .row-actions button {
+        width: auto;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      li.goal-item {
+        border: 1px solid #3b3b3b;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .status-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        background: #2f2f2f;
+        margin-left: 8px;
+      }
+
+      .status-pendente {
+        background: #595100;
+      }
+
+      .status-andamento {
+        background: #004a6d;
+      }
+
+      .status-concluida {
+        background: #1a5c1a;
+      }
+
+      .muted {
+        color: #aaa;
+        font-size: 13px;
+      }
+
+      #toast {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <h1>Controle de Metas Online</h1>
+      <p class="muted">
+        Multiusuário com atualização em tempo real (todos conectados veem mudanças instantaneamente).
+      </p>
+
+      <section id="authSection" class="card">
+        <h2>Acesso</h2>
+        <div class="grid">
+          <form id="registerForm" class="card">
+            <h3>Cadastro</h3>
+            <label>Nome</label>
+            <input type="text" name="name" required />
+            <label>E-mail</label>
+            <input type="email" name="email" required />
+            <label>Senha</label>
+            <input type="password" name="password" minlength="6" required />
+            <button type="submit">Criar conta</button>
+          </form>
+
+          <form id="loginForm" class="card">
+            <h3>Login</h3>
+            <label>E-mail</label>
+            <input type="email" name="email" required />
+            <label>Senha</label>
+            <input type="password" name="password" required />
+            <button type="submit">Entrar</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="appSection" class="hidden">
+        <div class="card">
+          <div class="row-actions">
+            <div style="flex: 1">
+              <strong id="welcomeText"></strong>
+              <div class="muted" id="connectionState">Socket: desconectado</div>
+            </div>
+            <button id="logoutButton" class="secondary">Sair</button>
+          </div>
+        </div>
+
+        <form id="goalForm" class="card">
+          <h2 id="goalFormTitle">Nova Meta</h2>
+          <input type="hidden" name="goalId" />
+
+          <label>Título</label>
+          <input type="text" name="title" required />
+
+          <label>Descrição</label>
+          <textarea name="description" rows="3"></textarea>
+
+          <label>Status</label>
+          <select name="status">
+            <option value="pendente">Pendente</option>
+            <option value="andamento">Em andamento</option>
+            <option value="concluida">Concluída</option>
+          </select>
+
+          <button type="submit">Salvar meta</button>
+          <button type="button" id="cancelEditButton" class="secondary hidden">Cancelar edição</button>
+        </form>
+
+        <section class="card">
+          <h2>Metas compartilhadas</h2>
+          <ul id="goalList"></ul>
+        </section>
+      </section>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+      const state = {
+        apiBase: window.location.origin,
+        token: localStorage.getItem("token"),
+        user: null,
+        goals: [],
+        socket: null,
+      };
+
+      const authSection = document.getElementById("authSection");
+      const appSection = document.getElementById("appSection");
+      const registerForm = document.getElementById("registerForm");
+      const loginForm = document.getElementById("loginForm");
+      const goalForm = document.getElementById("goalForm");
+      const goalList = document.getElementById("goalList");
+      const welcomeText = document.getElementById("welcomeText");
+      const connectionState = document.getElementById("connectionState");
+      const logoutButton = document.getElementById("logoutButton");
+      const cancelEditButton = document.getElementById("cancelEditButton");
+      const goalFormTitle = document.getElementById("goalFormTitle");
+      const toast = document.getElementById("toast");
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.remove("hidden");
+        setTimeout(() => toast.classList.add("hidden"), 2500);
+      }
+
+      async function request(path, options = {}) {
+        const headers = {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        };
+
+        if (state.token) {
+          headers.Authorization = `Bearer ${state.token}`;
+        }
+
+        const response = await fetch(`${state.apiBase}${path}`, {
+          ...options,
+          headers,
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || "Erro ao processar requisição.");
+        }
+
+        return data;
+      }
+
+      function connectSocket() {
+        if (!state.token) {
+          return;
+        }
+
+        if (state.socket) {
+          state.socket.disconnect();
+        }
+
+        state.socket = io(state.apiBase, {
+          transports: ["websocket"],
+          auth: { token: state.token },
+        });
+
+        state.socket.on("connect", () => {
+          connectionState.textContent = "Socket: conectado";
+        });
+
+        state.socket.on("disconnect", () => {
+          connectionState.textContent = "Socket: desconectado";
+        });
+
+        state.socket.on("goals:changed", async (payload) => {
+          await loadGoals();
+          if (payload?.action === "created") {
+            showToast("Nova meta criada por outro usuário.");
+          } else if (payload?.action === "updated") {
+            showToast("Uma meta foi atualizada.");
+          } else if (payload?.action === "deleted") {
+            showToast("Uma meta foi removida.");
+          }
+        });
+      }
+
+      function setAuthenticatedView(isAuthenticated) {
+        authSection.classList.toggle("hidden", isAuthenticated);
+        appSection.classList.toggle("hidden", !isAuthenticated);
+      }
+
+      function resetGoalForm() {
+        goalForm.reset();
+        goalForm.goalId.value = "";
+        goalFormTitle.textContent = "Nova Meta";
+        cancelEditButton.classList.add("hidden");
+      }
+
+      function fillGoalForm(goal) {
+        goalForm.goalId.value = goal.id;
+        goalForm.title.value = goal.title;
+        goalForm.description.value = goal.description || "";
+        goalForm.status.value = goal.status;
+        goalFormTitle.textContent = "Editar Meta";
+        cancelEditButton.classList.remove("hidden");
+      }
+
+      function renderGoals() {
+        goalList.innerHTML = "";
+
+        if (state.goals.length === 0) {
+          const li = document.createElement("li");
+          li.textContent = "Nenhuma meta cadastrada.";
+          li.className = "muted";
+          goalList.appendChild(li);
+          return;
+        }
+
+        state.goals.forEach((goal) => {
+          const li = document.createElement("li");
+          li.className = "goal-item";
+          li.innerHTML = `
+            <strong>${goal.title}</strong>
+            <span class="status-pill status-${goal.status}">${goal.status}</span>
+            <p>${goal.description || "Sem descrição"}</p>
+            <div class="muted">
+              Responsável: ${goal.ownerName || "Sem nome"} | Atualizado em: ${new Date(
+                goal.updatedAt
+              ).toLocaleString("pt-BR")}
+            </div>
+          `;
+
+          const actions = document.createElement("div");
+          actions.className = "row-actions";
+
+          const editButton = document.createElement("button");
+          editButton.type = "button";
+          editButton.className = "secondary";
+          editButton.textContent = "Editar";
+          editButton.addEventListener("click", () => fillGoalForm(goal));
+
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "secondary";
+          deleteButton.textContent = "Excluir";
+          deleteButton.addEventListener("click", async () => {
+            if (!confirm("Deseja excluir esta meta?")) {
+              return;
+            }
+            try {
+              await request(`/api/goals/${goal.id}`, { method: "DELETE" });
+              await loadGoals();
+              showToast("Meta removida.");
+            } catch (error) {
+              showToast(error.message);
+            }
+          });
+
+          actions.appendChild(editButton);
+          actions.appendChild(deleteButton);
+          li.appendChild(actions);
+          goalList.appendChild(li);
+        });
+      }
+
+      async function loadGoals() {
+        const data = await request("/api/goals");
+        state.goals = data.goals || [];
+        renderGoals();
+      }
+
+      async function loadProfile() {
+        const data = await request("/api/auth/me");
+        state.user = data.user;
+        welcomeText.textContent = `Olá, ${state.user.name}`;
+      }
+
+      async function bootAuthenticatedArea() {
+        await loadProfile();
+        await loadGoals();
+        connectSocket();
+        setAuthenticatedView(true);
+      }
+
+      async function handleLoginSuccess(payload) {
+        state.token = payload.token;
+        localStorage.setItem("token", state.token);
+        resetGoalForm();
+        await bootAuthenticatedArea();
+      }
+
+      registerForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(registerForm);
+        try {
+          const payload = await request("/api/auth/register", {
+            method: "POST",
+            body: JSON.stringify({
+              name: formData.get("name"),
+              email: formData.get("email"),
+              password: formData.get("password"),
+            }),
+          });
+          showToast("Conta criada com sucesso.");
+          await handleLoginSuccess(payload);
+        } catch (error) {
+          showToast(error.message);
+        }
+      });
+
+      loginForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(loginForm);
+        try {
+          const payload = await request("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({
+              email: formData.get("email"),
+              password: formData.get("password"),
+            }),
+          });
+          showToast("Login realizado.");
+          await handleLoginSuccess(payload);
+        } catch (error) {
+          showToast(error.message);
+        }
+      });
+
+      goalForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(goalForm);
+        const goalId = formData.get("goalId");
+        const payload = {
+          title: formData.get("title"),
+          description: formData.get("description"),
+          status: formData.get("status"),
+        };
+
+        try {
+          if (goalId) {
+            await request(`/api/goals/${goalId}`, {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            });
+            showToast("Meta atualizada.");
+          } else {
+            await request("/api/goals", {
+              method: "POST",
+              body: JSON.stringify(payload),
+            });
+            showToast("Meta criada.");
+          }
+          resetGoalForm();
+          await loadGoals();
+        } catch (error) {
+          showToast(error.message);
+        }
+      });
+
+      cancelEditButton.addEventListener("click", resetGoalForm);
+
+      logoutButton.addEventListener("click", () => {
+        localStorage.removeItem("token");
+        state.token = null;
+        state.user = null;
+        state.goals = [];
+        if (state.socket) {
+          state.socket.disconnect();
+          state.socket = null;
+        }
+        setAuthenticatedView(false);
+        renderGoals();
+        resetGoalForm();
+        showToast("Sessão encerrada.");
+      });
+
+      (async function init() {
+        try {
+          if (!state.token) {
+            setAuthenticatedView(false);
+            return;
+          }
+
+          await bootAuthenticatedArea();
+        } catch (_error) {
+          localStorage.removeItem("token");
+          state.token = null;
+          setAuthenticatedView(false);
+        }
+      })();
+    </script>
+  </body>
+</html>
