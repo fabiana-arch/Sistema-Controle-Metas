@@ -1,30 +1,35 @@
 # Sistema de Controle de Metas (online)
 
-Aplicação web com **cadastro de usuários**, **login** e **metas compartilhadas**: qualquer alteração aparece para todos quase na hora (WebSocket).
+Aplicação web com **cadastro de usuários**, **login** e **metas compartilhadas**: alterações aparecem para todos quase na hora (WebSocket).
 
-## Rodar localmente
+## Rodar no computador
 
 ```bash
 npm install
 cp .env.example .env
-# Edite .env e defina JWT_SECRET com um valor forte em produção.
+# Defina JWT_SECRET no .env
 npm start
 ```
 
-Abra `http://localhost:3000`. Crie uma conta ou entre; as metas são as mesmas para todos os usuários.
+Abra `http://localhost:3000`. Sem `DATABASE_URL`, o app usa **SQLite** em `data/app.db`.
 
-## Colocar na internet
+## Colocar na internet (quem não é programadora)
 
-1. Hospede este Node.js em um serviço com URL pública (Railway, Render, Fly.io, VPS, etc.).
-2. Defina a variável de ambiente `JWT_SECRET` (obrigatório em produção).
-3. O arquivo SQLite fica em `data/app.db` no disco do servidor — faça backup se precisar. Em ambientes efêmeros, considere volume persistente ou migrar para PostgreSQL depois.
+Guia passo a passo com **Render** e ficheiro pronto **`render.yaml`** (PostgreSQL grátis + site):
 
-HTTPS na URL pública é recomendado para proteger login e token.
+- [docs/IMPLANTAR_RENDER_PASSO_A_PASSO.md](docs/IMPLANTAR_RENDER_PASSO_A_PASSO.md)
+
+Resumo técnico:
+
+- Com **`DATABASE_URL`** (PostgreSQL): dados na nuvem — ideal para Render plano grátis (disco do *web service* é apagado em cada deploy).
+- Sem **`DATABASE_URL`**: **SQLite** em ficheiro — bom em VPS com disco persistente ou no seu PC.
+
+Defina sempre **`JWT_SECRET`** forte em produção (no Blueprint do Render pode ser gerado automaticamente).
 
 ## API (resumo)
 
-- `POST /api/auth/register` — corpo: `{ name, email, password }`
-- `POST /api/auth/login` — corpo: `{ email, password }`
+- `POST /api/auth/register` — `{ name, email, password }`
+- `POST /api/auth/login` — `{ email, password }`
 - `GET /api/goals` — cabeçalho `Authorization: Bearer <token>`
 - `POST /api/goals` — `{ title, target, current? }`
 - `PATCH /api/goals/:id` — `{ title?, target?, current? }`
