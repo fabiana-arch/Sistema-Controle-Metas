@@ -1,15 +1,28 @@
-// src/config/database.js
+const { Pool } = require("pg");
 
-const { Pool } = require('pg');
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 
-// Configurações do banco de dados PostgreSQL
-const pool = new Pool({
-    user: 'your_user',
-    host: 'localhost',
-    database: 'your_database',
-    password: 'your_password',
-    port: 5432,
-});
+let pool = null;
 
-// Exporta o pool para ser utilizado em outros módulos
-module.exports = pool;
+if (hasDatabaseUrl) {
+  const sslEnabled = process.env.DATABASE_SSL === "true" || process.env.NODE_ENV === "production";
+
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+  });
+}
+
+async function query(text, params = []) {
+  if (!pool) {
+    throw new Error("DATABASE_URL nao configurada.");
+  }
+
+  return pool.query(text, params);
+}
+
+module.exports = {
+  hasDatabaseUrl,
+  pool,
+  query,
+};

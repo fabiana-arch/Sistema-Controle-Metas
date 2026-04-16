@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema Online de Metas</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero card">
+        <div>
+          <p class="eyebrow">Sistema online e compartilhado</p>
+          <h1>Controle de metas com usuarios, login e atualizacao em tempo real</h1>
+          <p class="hero-copy">
+            Todos os usuarios autenticados conseguem entrar pela internet, criar metas e ver as alteracoes
+            dos outros navegadores assim que acontecem.
+          </p>
+        </div>
+        <div class="status-panel">
+          <span id="connectionStatus" class="status-badge offline">Desconectado</span>
+          <p class="status-text">Conecte-se para sincronizar automaticamente as mudancas.</p>
+        </div>
+      </section>
+
+      <section id="authSection" class="auth-grid">
+        <form id="registerForm" class="card form-card">
+          <h2>Criar usuario</h2>
+          <label>
+            Nome
+            <input name="name" type="text" placeholder="Seu nome" required />
+          </label>
+          <label>
+            E-mail
+            <input name="email" type="email" placeholder="voce@empresa.com" required />
+          </label>
+          <label>
+            Senha
+            <input name="password" type="password" placeholder="Minimo 6 caracteres" required />
+          </label>
+          <button type="submit">Cadastrar e entrar</button>
+        </form>
+
+        <form id="loginForm" class="card form-card">
+          <h2>Entrar</h2>
+          <label>
+            E-mail
+            <input name="email" type="email" placeholder="voce@empresa.com" required />
+          </label>
+          <label>
+            Senha
+            <input name="password" type="password" placeholder="Sua senha" required />
+          </label>
+          <button type="submit">Entrar</button>
+        </form>
+      </section>
+
+      <section id="appSection" class="hidden">
+        <div class="card toolbar">
+          <div>
+            <p class="eyebrow">Sessao atual</p>
+            <h2 id="currentUserName">-</h2>
+            <p id="currentUserEmail" class="muted">-</p>
+          </div>
+          <button id="logoutButton" class="secondary-button" type="button">Sair</button>
+        </div>
+
+        <form id="goalForm" class="card form-card">
+          <h2>Nova meta compartilhada</h2>
+          <label>
+            Titulo
+            <input name="title" type="text" placeholder="Ex.: Reduzir inadimplencia" required />
+          </label>
+          <label>
+            Descricao
+            <textarea name="description" rows="4" placeholder="Detalhes da meta"></textarea>
+          </label>
+          <button type="submit">Salvar meta</button>
+        </form>
+
+        <section class="card goals-card">
+          <div class="goals-header">
+            <div>
+              <p class="eyebrow">Metas em tempo real</p>
+              <h2>Painel compartilhado</h2>
+            </div>
+            <button id="refreshButton" class="secondary-button" type="button">Atualizar agora</button>
+          </div>
+          <div id="goalsEmptyState" class="empty-state hidden">Nenhuma meta cadastrada ainda.</div>
+          <div id="goalsList" class="goals-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
